@@ -14,20 +14,26 @@ class DiceyDilemma:
         self.width, self.height = screen.get_size()
         
         # Initialize pygame mixer for sound
-        pygame.mixer.init()
+        try:
+            pygame.mixer.init()
+            self.audio_available = True
+        except:
+            # If audio initialization fails, continue without sound
+            self.audio_available = False
         
         # Load sound effects
         self.attack_sound = None
         self.power_up_sound = None
         self.death_sound = None
         try:
-            # Try to load sound files if they exist
-            if os.path.exists("sounds/attack.wav"):
-                self.attack_sound = pygame.mixer.Sound("sounds/attack.wav")
-            if os.path.exists("sounds/power_up.wav"):
-                self.power_up_sound = pygame.mixer.Sound("sounds/power_up.wav")
-            if os.path.exists("sounds/death.wav"):
-                self.death_sound = pygame.mixer.Sound("sounds/death.wav")
+            # Try to load sound files if they exist and audio is available
+            if hasattr(self, 'audio_available') and self.audio_available:
+                if os.path.exists("sounds/attack.wav"):
+                    self.attack_sound = pygame.mixer.Sound("sounds/attack.wav")
+                if os.path.exists("sounds/power_up.wav"):
+                    self.power_up_sound = pygame.mixer.Sound("sounds/power_up.wav")
+                if os.path.exists("sounds/death.wav"):
+                    self.death_sound = pygame.mixer.Sound("sounds/death.wav")
         except:
             # If sound loading fails, continue without sound
             pass
@@ -216,6 +222,9 @@ class DiceyDilemma:
     
     def play_attack_sound(self, is_power_up=False, is_death=False):
         """Play attack sound effect"""
+        if not hasattr(self, 'audio_available') or not self.audio_available:
+            return  # Skip sound if audio is not available
+        
         try:
             if is_death and self.death_sound:
                 self.death_sound.play()
