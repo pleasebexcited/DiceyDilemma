@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Dicey Dilemma
 
 A roguelike dice game where you battle fantasy creatures using strategic dice combinations!
@@ -121,3 +122,7 @@ Dicey Dilemma is a turn-based combat game where you roll 6 dice and create the b
 - Different game modes
 
 Enjoy playing Dicey Dilemma! May the dice be ever in your favor! 🎲⚔️ 
+=======
+# DiceyDilemma
+A dice-based combat game with power-ups and 16-bit sound effects
+>>>>>>> 91d062db8be89582ef486a52a83dded9471bc51f
