@@ -19,19 +19,19 @@ class UI:
         self.text_color = (255, 255, 255)  # White
         self.button_color = (100, 100, 200)  # Blue
         self.button_hover_color = (150, 150, 255)  # Light blue
-        self.health_green = (0, 255, 0)  # Green
-        self.health_yellow = (255, 255, 0)  # Yellow
-        self.health_red = (255, 0, 0)  # Red
+        self.health_green = (0, 150, 0)  # Darker green for better text visibility
+        self.health_yellow = (200, 200, 0)  # Darker yellow for better text visibility
+        self.health_red = (200, 0, 0)  # Darker red for better text visibility
         self.background_color = (20, 20, 40)  # Dark blue
         
         # Load enemy image
         try:
-            self.dragon_image = pygame.image.load("images/dragon.png")
-            # Scale the image to fit nicely (180x180 pixels) - smaller to prevent cutoff
-            self.dragon_image = pygame.transform.scale(self.dragon_image, (180, 180))
+            self.dragon_image = pygame.image.load("images/dragonType.jpg")
+            # Scale the image to fit nicely with better aspect ratio (180x160 pixels)
+            self.dragon_image = pygame.transform.scale(self.dragon_image, (180, 160))
         except:
             self.dragon_image = None
-            print("Warning: Could not load dragon.png image")
+            print("Warning: Could not load dragonType.jpg image")
         
         # Load player image
         try:
@@ -126,7 +126,7 @@ class UI:
         start_text_rect = start_text.get_rect(center=self.start_button.center)
         screen.blit(start_text, start_text_rect)
     
-    def draw_shield_bar(self, screen, x, y, current_shield, max_shield, name):
+    def draw_shield_bar(self, screen, x, y, current_shield, max_shield, name, shield_shake_timer=0):
         """Draw a shield bar"""
         bar_width = 140
         bar_height = 20
@@ -134,6 +134,12 @@ class UI:
         # Center the shield bar under the health bar
         character_center_x = x + 50  # Character circle center
         bar_x = character_center_x - bar_width//2  # Perfect center alignment
+        
+        # Apply shake effect if active
+        if shield_shake_timer > 0:
+            shake_offset = random.randint(-3, 3)
+            bar_x += shake_offset
+            character_center_x += shake_offset
         
         # Background
         pygame.draw.rect(screen, (50, 50, 50), (bar_x, y, bar_width, bar_height))
@@ -157,12 +163,12 @@ class UI:
         text_rect = text_surface.get_rect(center=(character_center_x, y + bar_height//2))
         screen.blit(text_surface, text_rect)
     
-    def draw_combatants(self, screen, player, enemy, enemy_glitch_timer=0, player_glitch_timer=0, glitch_intensity=0):
+    def draw_combatants(self, screen, player, enemy, enemy_glitch_timer=0, player_glitch_timer=0, glitch_intensity=0, shield_shake_timer=0):
         """Draw player and enemy with health bars"""
         # Player (left side) - moved up and width adjusted
         self.draw_character(screen, 50, 10, "Player", (100, 150, 255), is_enemy=False, glitch_timer=player_glitch_timer, glitch_intensity=glitch_intensity)  # Moved from 20 to 10
         self.draw_health_bar(screen, 50, 160, player.health, player.max_health, "Player")  # Moved from 120 to 140
-        self.draw_shield_bar(screen, 50, 190, player.shield, player.max_shield, "Player")  # Moved from 150 to 170
+        self.draw_shield_bar(screen, 50, 190, player.shield, player.max_shield, "Player", shield_shake_timer)  # Moved from 150 to 170
         
         # Enemy (right side) - moved up
         self.draw_character(screen, 250, 10, enemy.enemy_type, (255, 100, 100), is_enemy=True, glitch_timer=enemy_glitch_timer, glitch_intensity=glitch_intensity)  # Moved from 20 to 10
@@ -174,8 +180,8 @@ class UI:
         character_center_x = x + 50
         
         if is_enemy and self.dragon_image:
-            # Draw enemy image (dragon) - moved down
-            image_rect = self.dragon_image.get_rect(center=(character_center_x, y + 80))  # Moved from y+50 to y+80
+            # Draw enemy image (dragon) - moved up even further
+            image_rect = self.dragon_image.get_rect(center=(character_center_x, y + 80))  # Moved from y+85 to y+80
             
             # Apply glitch effect if active
             if glitch_timer > 0:
@@ -493,6 +499,34 @@ class UI:
         # Store rect for click detection
         shop_state["line_em_up_rect"] = item_rect
         shop_state["can_afford_line_em_up"] = can_afford_power_up and has_empty_slot
+        
+        # Shield Of Dreams power-up
+        shield_power_up_cost = 100
+        can_afford_shield_power_up = player.get_gold() >= shield_power_up_cost
+        has_empty_slot_shield = any(p is None for p in player.power_ups)
+        
+        # Item background for Shield Of Dreams
+        shield_item_rect = pygame.Rect(50, y_start + 70, self.width - 100, 50)
+        if can_afford_shield_power_up and has_empty_slot_shield:
+            color = (80, 80, 80)
+        else:
+            color = (50, 50, 50)  # Greyed out
+        pygame.draw.rect(screen, color, shield_item_rect)
+        pygame.draw.rect(screen, (255, 255, 255), shield_item_rect, 2)
+        
+        # Item text for Shield Of Dreams
+        text_color = (255, 255, 255) if can_afford_shield_power_up and has_empty_slot_shield else (150, 150, 150)
+        shield_item_text = self.medium_font.render("Shield Of Dreams", True, text_color)
+        shield_cost_text = self.small_font.render(f"Cost: {shield_power_up_cost} gold", True, text_color)
+        shield_desc_text = self.small_font.render("Six fours = +25 max shield!", True, text_color)
+        
+        screen.blit(shield_item_text, (70, y_start + 75))
+        screen.blit(shield_cost_text, (70, y_start + 95))
+        screen.blit(shield_desc_text, (70, y_start + 110))
+        
+        # Store rect for click detection
+        shop_state["shield_of_dreams_rect"] = shield_item_rect
+        shop_state["can_afford_shield_of_dreams"] = can_afford_shield_power_up and has_empty_slot_shield
     
     def draw_sell_tab(self, screen, player, shop_state):
         """Draw the sell tab content"""

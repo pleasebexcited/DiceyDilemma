@@ -70,6 +70,11 @@ class DiceyDilemma:
         self.second_attack_score = 0
         self.second_attack_message = ""
         self.attack_count = 0
+        self.shield_shake_timer = 0
+        self.shield_upgrade_timer = 0
+        self.shield_upgrade_count = 0
+        self.shield_upgrade_message = ""
+        self.shield_upgrade_duration = 0
         
         # Load high score
         self.high_score = self.load_high_score()
@@ -173,6 +178,23 @@ class DiceyDilemma:
                         self.display_message = "No empty power-up slots!"
                         self.message_timer = 120  # 2 seconds
                     return
+            
+            if "shield_of_dreams_rect" in self.shop_state and self.shop_state["shield_of_dreams_rect"].collidepoint(x, y):
+                if self.shop_state.get("can_afford_shield_of_dreams", False):
+                    # Purchase Shield Of Dreams power-up
+                    self.player.spend_gold(100)
+                    power_up = {
+                        "name": "Shield Of Dreams",
+                        "description": "Six fours = +25 max shield!",
+                        "cost": 100
+                    }
+                    if self.player.add_power_up(power_up):
+                        self.display_message = "Shield Of Dreams power-up purchased!"
+                        self.message_timer = 120  # 2 seconds
+                    else:
+                        self.display_message = "No empty power-up slots!"
+                        self.message_timer = 120  # 2 seconds
+                    return
     
     def handle_click(self, pos):
         """Handle mouse clicks"""
@@ -264,6 +286,10 @@ class DiceyDilemma:
             result = sorted_values == [1, 2, 3, 4, 5, 6]
             return result
     
+    def check_six_fours(self, dice_values):
+        """Check if all dice show 4 (including stars/wild dice as fours)"""
+        return all(value == 4 or value == 0 for value in dice_values)
+    
     def play_hand(self):
         """Play the current dice hand"""
         # Calculate score
@@ -293,6 +319,10 @@ class DiceyDilemma:
         has_power_up = self.player.has_power_up("Line 'em up")
         is_sequential = self.check_sequential_six(dice_values)
         
+        # Check for "Shield Of Dreams" power-up activation
+        has_shield_power_up = self.player.has_power_up("Shield Of Dreams")
+        is_six_fours = self.check_six_fours(dice_values)
+        
         # Check if enemy is defeated
         if self.enemy.health <= 0:
             self.enemy_defeated()
@@ -319,13 +349,46 @@ class DiceyDilemma:
                 self.display_message = f"{scoring_hand}: {calculation} = {score} damage! (Sequential six - buy Line 'em up for double damage!)"
                 self.message_timer = 180  # 3 seconds at 60 FPS
             else:
-                # Only start enemy turn if no power-up attacks are pending
-                if self.second_attack_timer == 0 and self.attack_count == 0:
-                    self.game_state = "enemy_turn"
-                    self.enemy_turn_timer = 60  # 1 second delay
+                # Check for Shield Of Dreams activation
+                if has_shield_power_up and is_six_fours:
+                    # Count how many "Shield Of Dreams" power-ups the player has
+                    shield_power_up_count = self.player.get_power_up_count("Shield Of Dreams")
+                    
+                    # Upgrade shield permanently (first upgrade)
+                    old_max_shield = self.player.max_shield
+                    self.player.max_shield += 25
+                    self.player.shield = self.player.max_shield  # Fill up to new maximum
+                    
+                    # Play power-up sound
+                    self.play_attack_sound(is_power_up=True)
+                    
+                    # Trigger shield shake animation
+                    self.shield_shake_timer = 60  # 1 second at 60 FPS
+                    
+                    # Display first shield upgrade message
+                    self.display_message = f"{scoring_hand}: {calculation} = {score} damage! + Shield Of Dreams: +25 max shield! ({old_max_shield} → {self.player.max_shield})"
+                    self.message_timer = 90  # 1.5 seconds for first upgrade
+                    
+                    # Set up multiple shield upgrades based on power-up count
+                    self.shield_upgrade_timer = 90  # 1.5 second delay before second upgrade
+                    self.shield_upgrade_count = shield_power_up_count - 1  # Track remaining upgrades
+                    self.shield_upgrade_message = f"Shield Of Dreams: +25 max shield! ({self.player.max_shield} → {self.player.max_shield + 25})"
+                    
+                    # Keep shield upgrade active during all upgrades
+                    self.shield_upgrade_duration = 90 + (shield_power_up_count * 90)  # 1.5s per upgrade
+                elif is_six_fours:
+                    # Check if it was six fours but no power-up
+                    self.display_message = f"{scoring_hand}: {calculation} = {score} damage! (Six fours - buy Shield Of Dreams for +25 max shield!)"
+                    self.message_timer = 180  # 3 seconds at 60 FPS
                 else:
-                    # Keep in playing state until all attacks are complete
-                    self.game_state = "playing"
+                    # Only start enemy turn if no power-up attacks or shield upgrades are pending
+                    if (self.second_attack_timer == 0 and self.attack_count == 0 and 
+                        self.shield_upgrade_timer == 0 and self.shield_upgrade_count == 0):
+                        self.game_state = "enemy_turn"
+                        self.enemy_turn_timer = 60  # 1 second delay
+                    else:
+                        # Keep in playing state until all attacks/upgrades are complete
+                        self.game_state = "playing"
     
     def enemy_turn(self):
         """Enemy's turn to roll and attack"""
@@ -430,6 +493,36 @@ class DiceyDilemma:
             self.glitch_intensity -= 1
         if self.double_damage_timer > 0:
             self.double_damage_timer -= 1
+        if self.shield_shake_timer > 0:
+            self.shield_shake_timer -= 1
+        if self.shield_upgrade_timer > 0:
+            self.shield_upgrade_timer -= 1
+            # Trigger additional shield upgrade when timer reaches 0
+            if self.shield_upgrade_timer == 0:
+                # Upgrade shield again
+                old_max_shield = self.player.max_shield
+                self.player.max_shield += 25
+                self.player.shield = self.player.max_shield  # Fill up to new maximum
+                
+                # Play power-up sound
+                self.play_attack_sound(is_power_up=True)
+                
+                # Trigger shield shake animation again
+                self.shield_shake_timer = 60  # 1 second at 60 FPS
+                
+                # Show shield upgrade message
+                self.display_message = self.shield_upgrade_message
+                self.message_timer = 90  # 1.5 seconds
+                
+                # If we have more upgrades to perform, set up the next one
+                self.shield_upgrade_count -= 1
+                if self.shield_upgrade_count > 0:
+                    self.shield_upgrade_timer = 90  # 1.5 second delay before next upgrade
+                    self.shield_upgrade_message = f"Shield Of Dreams: +25 max shield! ({self.player.max_shield} → {self.player.max_shield + 25})"
+                else:
+                    # All upgrades complete, start enemy turn
+                    self.game_state = "enemy_turn"
+                    self.enemy_turn_timer = 60  # 1 second delay
         if self.second_attack_timer > 0:
             self.second_attack_timer -= 1
             # Trigger second attack when timer reaches 0
@@ -483,7 +576,7 @@ class DiceyDilemma:
     def draw_game(self):
         """Draw the main game screen"""
         # Draw player and enemy
-        self.ui.draw_combatants(self.screen, self.player, self.enemy, self.enemy_glitch_timer, self.player_glitch_timer, self.glitch_intensity)
+        self.ui.draw_combatants(self.screen, self.player, self.enemy, self.enemy_glitch_timer, self.player_glitch_timer, self.glitch_intensity, self.shield_shake_timer)
         
         # Draw dice
         for die in self.dice:
